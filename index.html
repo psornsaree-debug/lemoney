@@ -281,8 +281,8 @@ input[type=number]{-moz-appearance:textfield}
 
 @media (min-width:900px){
   body{background:#DCE4F0}
-  .app{max-width:1180px;border:none;display:grid;grid-template-columns:248px 1fr;grid-template-rows:auto 1fr;grid-template-areas:"bar bar" "nav main";box-shadow:0 0 60px rgba(31,58,99,.18)}
-  .app-bar{grid-area:bar;padding:16px 30px}
+  .app{max-width:1920px;border:none;display:grid;grid-template-columns:264px 1fr;grid-template-rows:auto 1fr;grid-template-areas:"bar bar" "nav main";box-shadow:0 0 60px rgba(31,58,99,.18)}
+  .app-bar{grid-area:bar;padding:16px 34px}
   .app-bar .ab-title{font-size:18px}
   .app-main{grid-area:main}
   /* sidebar nav */
@@ -298,13 +298,14 @@ input[type=number]{-moz-appearance:textfield}
   .tab-add.active{background:var(--marigold)}
   .tab-add.active span:last-child{color:var(--blue)}
   /* content width + multi-column */
-  .screen{padding:26px 34px 44px;max-width:1000px;margin:0 auto}
+  .screen{padding:28px 44px 48px;max-width:1720px;margin:0 auto}
   .kpi-grid{grid-template-columns:repeat(4,1fr)}
   .stat3{grid-template-columns:repeat(3,1fr)}
   .wide-card{grid-column:1/-1}
+  #btn-share{justify-self:start;width:auto;padding-left:26px;padding-right:26px}
   #screen-overview.active{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-content:start}
   #screen-overview>.hero-card,#screen-overview>.kpi-grid,#screen-overview>.insight-card,#screen-overview>.credit{grid-column:1/-1}
-  #screen-compare.active{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-content:start}
+  #screen-compare.active{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-content:start;align-items:start}
   #screen-compare>.sec-title,#screen-compare>.sec-sub,#screen-compare>#btn-share,#screen-compare>.stat3,#screen-compare>.sub-head{grid-column:1/-1}
   #screen-settings.active{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-content:start}
   #screen-settings>.sec-title,#screen-settings>.credit{grid-column:1/-1}
@@ -314,8 +315,24 @@ input[type=number]{-moz-appearance:textfield}
   .hero-card .hc-bal{font-size:46px}
   /* overlays stay full-cover, center nicely */
   .setup-card{max-width:380px}
-  .sm-body img{max-width:920px;margin:0 auto}
+  .sm-body img{max-width:1100px;margin:0 auto}
   .cf-box{max-width:360px}
+}
+
+/* ===== full-HD dashboard rearrangement ===== */
+@media (min-width:1320px){
+  .screen{padding:30px 56px 52px}
+  /* overview: 3 columns for the lower cards */
+  #screen-overview.active{grid-template-columns:1.4fr 1fr}
+  /* dashboard: stats row, big daily chart, 3 comparison charts in a row, full table */
+  #screen-compare.active{grid-template-columns:repeat(3,1fr)}
+  #screen-compare .daily-card{grid-column:span 2}
+  #screen-compare .canvas-box{height:300px!important}
+  #screen-compare .wide-card .canvas-box{height:360px!important}
+  #screen-ledgers #acc-wrap{column-count:3}
+  #screen-settings.active{grid-template-columns:1fr 1fr 1fr}
+  #screen-settings>.card,#screen-settings>.credit{grid-column:auto}
+  #screen-settings>.sec-title,#screen-settings>.credit{grid-column:1/-1}
 }
 </style>
 </head>
@@ -429,7 +446,7 @@ input[type=number]{-moz-appearance:textfield}
         <div class="stat"><div class="sl">จ่ายมากสุด</div><div class="sv" id="d-max">0</div><div class="ss" id="d-max-day">—</div></div>
       </div>
 
-      <div class="card wide-card">
+      <div class="card wide-card daily-card">
         <h4>รายจ่ายจริงแต่ละวัน</h4>
         <div class="h-sub" id="daily-sub">เดือนนี้</div>
         <div class="legend">
