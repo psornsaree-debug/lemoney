@@ -1241,8 +1241,17 @@ document.getElementById('btn-wipe').addEventListener('click',()=>{
 });
 /* ---------- cloud sync (Firebase) ---------- */
 const FB_CFG_KEY='lemoney-fbconfig';
+const FB_EMBEDDED={
+  apiKey:"AIzaSyARXLF3qK7wEvQEx18EMlhvJatIZIUrk9U",
+  authDomain:"lemoney-95b93.firebaseapp.com",
+  projectId:"lemoney-95b93",
+  storageBucket:"lemoney-95b93.firebasestorage.app",
+  messagingSenderId:"260618494916",
+  appId:"1:260618494916:web:00fe46ece3f40c4bdf7a91",
+  measurementId:"G-55RJ926WH0"
+};
 let fbAuth=null,fbDb=null,fbUser=null,fbReady=false,fbApplyingRemote=false,fbUnsub=null,fbPushTimer=null,fbLastJSON=null,fbLibsLoading=false;
-function getSavedConfig(){try{return localStorage.getItem(FB_CFG_KEY);}catch(e){return null;}}
+function getSavedConfig(){if(FB_EMBEDDED&&FB_EMBEDDED.apiKey)return JSON.stringify(FB_EMBEDDED);try{return localStorage.getItem(FB_CFG_KEY);}catch(e){return null;}}
 function parseConfig(text){let t=String(text||'').trim();const i=t.indexOf('{'),j=t.lastIndexOf('}');if(i<0||j<0)throw new Error('รูปแบบไม่ถูกต้อง');t=t.slice(i,j+1);const o=(new Function('return ('+t+')'))();if(!o||!o.apiKey||!o.projectId)throw new Error('config ไม่ครบ (ต้องมี apiKey, projectId)');return o;}
 function ensureFirebaseLibs(cb){
   if(window.firebase&&firebase.firestore)return cb();
@@ -1318,13 +1327,11 @@ function renderCloud(){
     box.innerHTML='<input class="cloud-field" id="fb-email" type="email" inputmode="email" placeholder="อีเมล">'+
       '<input class="cloud-field" id="fb-pass" type="password" placeholder="รหัสผ่าน (อย่างน้อย 6 ตัว)">'+
       '<div class="cloud-row"><button class="cloud-btn alt" id="fb-signup">สมัครใหม่</button><button class="cloud-btn" id="fb-login">เข้าสู่ระบบ</button></div>'+
-      '<button class="cloud-link" id="fb-reset-cfg">เปลี่ยน/ลบการตั้งค่า Firebase</button>'+
-      '<div class="cloud-status" id="cloud-status">'+(fbReady?'พร้อมล็อกอิน':'กำลังเตรียมการเชื่อมต่อ…')+'</div>';
+      '<div class="cloud-status" id="cloud-status">'+(fbReady?'ใช้ครั้งแรกให้กด "สมัครใหม่" · เคยสมัครแล้วกด "เข้าสู่ระบบ"':'กำลังเตรียมการเชื่อมต่อ…')+'</div>';
     const em=()=>document.getElementById('fb-email').value.trim(),pw=()=>document.getElementById('fb-pass').value;
-    const guard=()=>{if(!fbAuth){cloudStatus('ยังเชื่อมต่อ Firebase ไม่เสร็จ ลองใหม่อีกครั้ง',true);return false;}return true;};
+    const guard=()=>{if(!fbAuth){cloudStatus('ยังเชื่อมต่อไม่เสร็จ ลองอีกครั้งใน 2-3 วินาที',true);return false;}return true;};
     document.getElementById('fb-login').onclick=()=>{if(!guard())return;cloudStatus('กำลังเข้าสู่ระบบ…');fbAuth.signInWithEmailAndPassword(em(),pw()).catch(e=>cloudStatus('เข้าสู่ระบบไม่ได้: '+e.message,true));};
     document.getElementById('fb-signup').onclick=()=>{if(!guard())return;cloudStatus('กำลังสมัคร…');fbAuth.createUserWithEmailAndPassword(em(),pw()).then(()=>toast('สมัครสำเร็จ')).catch(e=>cloudStatus('สมัครไม่ได้: '+e.message,true));};
-    document.getElementById('fb-reset-cfg').onclick=()=>{confirmDialog('ลบการตั้งค่า Firebase บนเครื่องนี้?',()=>{try{localStorage.removeItem(FB_CFG_KEY);}catch(e){}stopCloudSync();fbReady=false;fbAuth=null;fbDb=null;renderCloud();},'ลบ',true);};
     return;
   }
   box.innerHTML='<div class="cloud-on"><span class="cloud-dot"></span><span class="ce">'+(fbUser.email||'ล็อกอินแล้ว')+'</span></div>'+
