@@ -268,6 +268,20 @@ input{font-family:var(--sans)}
 .cr-line b{color:var(--ink-soft);font-weight:600}
 .credit-sm{padding:8px 0 4px;font-size:11px;color:var(--ink-faint);letter-spacing:.03em}
 .credit-sm b{color:var(--ink-soft);font-weight:600}
+.cloud-field{width:100%;border:1px solid var(--line);background:#FBF8EC;font-size:14px;padding:11px 12px;border-radius:10px;color:var(--ink);font-family:var(--sans);margin-bottom:9px}
+.cloud-field:focus{outline:none;border-color:var(--blue)}
+textarea.cloud-field{min-height:84px;font-family:var(--mono);font-size:11.5px;resize:vertical;line-height:1.4}
+.cloud-btn{width:100%;background:var(--blue);color:#fff;font-weight:600;font-size:14.5px;padding:12px;border-radius:11px}
+.cloud-btn.alt{background:var(--card);color:var(--blue);border:1px solid var(--line)}
+.cloud-btn:active{opacity:.85}
+.cloud-btn:disabled{opacity:.55}
+.cloud-row{display:flex;gap:9px;margin-top:2px}
+.cloud-status{font-size:12px;color:var(--ink-soft);margin-top:11px;line-height:1.55}
+.cloud-status.err{color:var(--brown)}
+.cloud-on{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--ink);background:#E9F3EC;border:1px solid #BCDCC5;border-radius:11px;padding:12px 13px;margin-bottom:10px}
+.cloud-dot{width:9px;height:9px;border-radius:50%;background:#2E9E5B;flex:0 0 auto}
+.cloud-on .ce{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.cloud-link{font-size:12.5px;color:var(--blue);font-weight:600;background:none;padding:7px 0;display:block}
 
 /* toast */
 .toast{position:fixed;left:50%;bottom:calc(86px + var(--safe-bot));transform:translateX(-50%) translateY(20px);background:var(--blue);color:#fff;font-size:13.5px;font-weight:500;padding:12px 20px;border-radius:99px;box-shadow:0 6px 20px rgba(31,58,99,.35);opacity:0;pointer-events:none;transition:.3s;z-index:60;max-width:90%;text-align:center}
@@ -554,6 +568,11 @@ input[type=number]{-moz-appearance:textfield}
         </div>
         <div class="store-note" id="store-note"></div>
       </div>
+      <div class="card">
+        <h4>ซิงก์ข้ามเครื่อง (คลาวด์)</h4>
+        <div class="h-sub">ล็อกอินด้วยอีเมล แล้วคอมกับมือถือจะเห็นข้อมูลเดียวกันอัตโนมัติ</div>
+        <div id="cloud-body"></div>
+      </div>
       <div class="card" id="install-card" style="display:none">
         <h4>ติดตั้งเป็นแอป</h4>
         <div class="h-sub">เพิ่มลงหน้าจอเครื่อง เปิดได้เหมือนแอปจริง</div>
@@ -640,7 +659,7 @@ const KEY='monthly-ledger-book';
 const store={
   ok:(()=>{try{localStorage.setItem('__t','1');localStorage.removeItem('__t');return true;}catch(e){return false;}})(),
   load(){if(!this.ok)return null;try{return JSON.parse(localStorage.getItem(KEY));}catch(e){return null;}},
-  save(d){if(!this.ok)return;try{localStorage.setItem(KEY,JSON.stringify(d));}catch(e){}}
+  save(d){if(this.ok){try{localStorage.setItem(KEY,JSON.stringify(d));}catch(e){}}if(typeof scheduleCloudPush==='function')scheduleCloudPush();}
 };
 function TEMPLATE(){return{start:0,
   income:[{name:'งานประจำ',t:0,a:0}],
@@ -1220,7 +1239,106 @@ document.getElementById('btn-wipe').addEventListener('click',()=>{
     fullRender();openSetup('init');toast('ล้างข้อมูลแล้ว');
   },'ล้างทั้งหมด',true);
 });
-/* ---------- export Excel / CSV ---------- */
+/* ---------- cloud sync (Firebase) ---------- */
+const FB_CFG_KEY='lemoney-fbconfig';
+let fbAuth=null,fbDb=null,fbUser=null,fbReady=false,fbApplyingRemote=false,fbUnsub=null,fbPushTimer=null,fbLastJSON=null,fbLibsLoading=false;
+function getSavedConfig(){try{return localStorage.getItem(FB_CFG_KEY);}catch(e){return null;}}
+function parseConfig(text){let t=String(text||'').trim();const i=t.indexOf('{'),j=t.lastIndexOf('}');if(i<0||j<0)throw new Error('รูปแบบไม่ถูกต้อง');t=t.slice(i,j+1);const o=(new Function('return ('+t+')'))();if(!o||!o.apiKey||!o.projectId)throw new Error('config ไม่ครบ (ต้องมี apiKey, projectId)');return o;}
+function ensureFirebaseLibs(cb){
+  if(window.firebase&&firebase.firestore)return cb();
+  if(fbLibsLoading){const iv=setInterval(()=>{if(window.firebase&&firebase.firestore){clearInterval(iv);cb();}},200);return;}
+  fbLibsLoading=true;
+  const base='https://www.gstatic.com/firebasejs/10.12.5/';
+  const libs=['firebase-app-compat.js','firebase-auth-compat.js','firebase-firestore-compat.js'];
+  (function load(i){
+    if(i>=libs.length){fbLibsLoading=false;return cb();}
+    const s=document.createElement('script');s.src=base+libs[i];
+    s.onload=()=>load(i+1);
+    s.onerror=()=>{fbLibsLoading=false;cloudStatus('โหลดไลบรารีคลาวด์ไม่ได้ — ตรวจอินเทอร์เน็ต',true);};
+    document.head.appendChild(s);
+  })(0);
+}
+function initFirebase(config){
+  try{
+    if(!firebase.apps.length)firebase.initializeApp(config);
+    fbAuth=firebase.auth();fbDb=firebase.firestore();fbReady=true;
+    fbAuth.onAuthStateChanged(u=>{fbUser=u;if(u){startCloudSync();}else{stopCloudSync();}renderCloud();});
+  }catch(e){cloudStatus('เชื่อมต่อไม่สำเร็จ: '+e.message,true);}
+}
+function startCloudSync(){
+  if(!fbUser||!fbDb)return;
+  const ref=fbDb.collection('ledgers').doc(fbUser.uid);
+  ref.get().then(snap=>{
+    const d=snap.exists?snap.data():null;
+    if(d&&d.data){applyRemote(d.data,'ดึงข้อมูลจากคลาวด์แล้ว');}
+    else{fbLastJSON=null;cloudPush();}
+    if(fbUnsub)fbUnsub();
+    fbUnsub=ref.onSnapshot(s=>{
+      if(s.metadata.hasPendingWrites)return;
+      const dd=s.data();if(!dd||!dd.data)return;
+      if(dd.data===fbLastJSON)return;
+      applyRemote(dd.data,'อัปเดตจากอีกเครื่องแล้ว');
+    });
+  }).catch(e=>cloudStatus('ดึงข้อมูลไม่ได้: '+e.message,true));
+}
+function stopCloudSync(){if(fbUnsub){fbUnsub();fbUnsub=null;}}
+function applyRemote(json,msg){
+  try{
+    const incoming=JSON.parse(json);if(!incoming||!incoming.months)return;
+    fbApplyingRemote=true;fbLastJSON=json;book=incoming;
+    if(!book.months[book.current])book.current=Object.keys(book.months).sort()[0];
+    state=book.months[book.current];Object.values(book.months).forEach(mo=>{if(!Array.isArray(mo.log))mo.log=[];});
+    daySelMonth=null;try{localStorage.setItem(KEY,JSON.stringify(book));}catch(e){}
+    fullRender();fbApplyingRemote=false;cloudStatus(msg);toast(msg);
+  }catch(e){fbApplyingRemote=false;}
+}
+function scheduleCloudPush(){if(!fbUser||fbApplyingRemote)return;clearTimeout(fbPushTimer);fbPushTimer=setTimeout(cloudPush,1300);}
+function cloudPush(){
+  if(!fbUser||!fbDb)return;
+  const json=JSON.stringify(book);if(json===fbLastJSON)return;fbLastJSON=json;
+  fbDb.collection('ledgers').doc(fbUser.uid).set({data:json,updatedAt:Date.now()})
+    .then(()=>cloudStatus('ซิงก์ล่าสุด '+new Date().toLocaleTimeString('th-TH')))
+    .catch(e=>cloudStatus('ซิงก์ไม่สำเร็จ: '+e.message,true));
+}
+function cloudStatus(msg,err){const el=document.getElementById('cloud-status');if(el){el.textContent=msg;el.className='cloud-status'+(err?' err':'');}}
+function renderCloud(){
+  const box=document.getElementById('cloud-body');if(!box)return;
+  const cfg=getSavedConfig();
+  if(!cfg){
+    box.innerHTML='<textarea class="cloud-field" id="fb-config" placeholder="วาง firebaseConfig จาก Firebase Console ที่นี่ (ทั้งก้อน { ... })"></textarea>'+
+      '<button class="cloud-btn" id="fb-connect">เชื่อมต่อ Firebase</button>'+
+      '<div class="cloud-status" id="cloud-status">ยังไม่ได้ตั้งค่า — ดูวิธีสร้าง Firebase ในคู่มือที่แชตส่งให้</div>';
+    document.getElementById('fb-connect').onclick=()=>{
+      try{const c=parseConfig(document.getElementById('fb-config').value);localStorage.setItem(FB_CFG_KEY,JSON.stringify(c));toast('บันทึก config แล้ว');renderCloud();ensureFirebaseLibs(()=>initFirebase(c));}
+      catch(e){cloudStatus('config ผิด: '+e.message,true);}
+    };
+    return;
+  }
+  if(!fbUser){
+    box.innerHTML='<input class="cloud-field" id="fb-email" type="email" inputmode="email" placeholder="อีเมล">'+
+      '<input class="cloud-field" id="fb-pass" type="password" placeholder="รหัสผ่าน (อย่างน้อย 6 ตัว)">'+
+      '<div class="cloud-row"><button class="cloud-btn alt" id="fb-signup">สมัครใหม่</button><button class="cloud-btn" id="fb-login">เข้าสู่ระบบ</button></div>'+
+      '<button class="cloud-link" id="fb-reset-cfg">เปลี่ยน/ลบการตั้งค่า Firebase</button>'+
+      '<div class="cloud-status" id="cloud-status">'+(fbReady?'พร้อมล็อกอิน':'กำลังเตรียมการเชื่อมต่อ…')+'</div>';
+    const em=()=>document.getElementById('fb-email').value.trim(),pw=()=>document.getElementById('fb-pass').value;
+    const guard=()=>{if(!fbAuth){cloudStatus('ยังเชื่อมต่อ Firebase ไม่เสร็จ ลองใหม่อีกครั้ง',true);return false;}return true;};
+    document.getElementById('fb-login').onclick=()=>{if(!guard())return;cloudStatus('กำลังเข้าสู่ระบบ…');fbAuth.signInWithEmailAndPassword(em(),pw()).catch(e=>cloudStatus('เข้าสู่ระบบไม่ได้: '+e.message,true));};
+    document.getElementById('fb-signup').onclick=()=>{if(!guard())return;cloudStatus('กำลังสมัคร…');fbAuth.createUserWithEmailAndPassword(em(),pw()).then(()=>toast('สมัครสำเร็จ')).catch(e=>cloudStatus('สมัครไม่ได้: '+e.message,true));};
+    document.getElementById('fb-reset-cfg').onclick=()=>{confirmDialog('ลบการตั้งค่า Firebase บนเครื่องนี้?',()=>{try{localStorage.removeItem(FB_CFG_KEY);}catch(e){}stopCloudSync();fbReady=false;fbAuth=null;fbDb=null;renderCloud();},'ลบ',true);};
+    return;
+  }
+  box.innerHTML='<div class="cloud-on"><span class="cloud-dot"></span><span class="ce">'+(fbUser.email||'ล็อกอินแล้ว')+'</span></div>'+
+    '<button class="cloud-btn alt" id="fb-logout">ออกจากระบบ</button>'+
+    '<div class="cloud-status" id="cloud-status">ซิงก์อัตโนมัติทุกการแก้ไข</div>';
+  document.getElementById('fb-logout').onclick=()=>{if(fbAuth)fbAuth.signOut();toast('ออกจากระบบแล้ว');};
+}
+function cloudBoot(){
+  renderCloud();
+  const cfg=getSavedConfig();
+  if(cfg){ensureFirebaseLibs(()=>{try{initFirebase(JSON.parse(cfg));}catch(e){cloudStatus('config เสีย ลองตั้งใหม่',true);}});}
+}
+
+
 function downloadFile(blob,name){try{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);return true;}catch(e){return false;}}
 function exportStamp(){return new Date().toISOString().slice(0,10);}
 function summaryAOA(){
@@ -1288,6 +1406,7 @@ if('serviceWorker' in navigator && location.protocol==='https:'){navigator.servi
 
 fullRender();
 if(needSetup) openSetup('init');
+cloudBoot();
 if(!window.Chart) window.addEventListener('load',recalc);
 </script>
 </body>
