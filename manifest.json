@@ -1,0 +1,18 @@
+{
+  "name": "Lemoney — สมุดบัญชีรายเดือน",
+  "short_name": "Lemoney",
+  "description": "สมุดบัญชีรายเดือน บันทึกรายรับรายจ่าย ตั้งงบ ซิงก์ข้ามเครื่อง",
+  "lang": "th",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FBF6E6",
+  "theme_color": "#2E5AA7",
+  "icons": [
+    { "src": "icon_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon_maskable_192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon_maskable_512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
